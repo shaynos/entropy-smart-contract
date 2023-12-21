@@ -1,14 +1,14 @@
 import { ethers } from 'hardhat'
-const RAFFLE_ADDRESS = '0xc2A791CdE67Ab6BE98d7f0aD890BD39d08D1563e'
-const TOKEN_ADDRESS = '0xF5CC29a156bF5617987bC5d468A632C5bB5b41eC'
-const TOKEN_ID = 4
+const RAFFLE_ADDRESS = '0x321443637A0a608123E557989E99c1DbB27e774c'
+const TOKEN_ADDRESS = '0xF9ac39e588486f3B17222eBD59F7833A0e95b727'
+const TOKEN_ID = 1
 
 async function main() {
   const raffle = await ethers.getContractAt('NftRaffle', RAFFLE_ADDRESS)
   const mockNft = await ethers.getContractAt('MockNft', TOKEN_ADDRESS)
 
-//   const mintTx = await mockNft.safeMint(100)
-//   await mintTx.wait()
+  const mintTx = await mockNft.safeMint(100)
+  await mintTx.wait()
 
   const approveTx = await mockNft.setApprovalForAll(RAFFLE_ADDRESS, true)
   await approveTx.wait()

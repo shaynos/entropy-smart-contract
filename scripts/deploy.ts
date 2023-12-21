@@ -14,7 +14,8 @@ async function main() {
 
   console.log('nft: ', await mockNFT.getAddress())
 
-  await mockNFT.safeMint(100)
+  const mockTx = await mockNFT.safeMint(100)
+  await mockTx.wait()
   
   console.log('minted')
 

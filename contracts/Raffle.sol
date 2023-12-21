@@ -25,8 +25,6 @@ contract NftRaffle {
 
     event TicketPurchased(
         uint256 indexed raffleId,
-        uint256 indexed tokenId,
-        address indexed nftAddress,
         address ticketOwner
     );
 
@@ -65,16 +63,13 @@ contract NftRaffle {
         uint256 _ticketPrice,
         uint256 _maxTickets
     ) external {
-        require(_ticketPrice > 0, "Ticket price must be greater than 0");
-        require(_maxTickets > 1, "Max tickets must be greater than 1");
-        require(
-            _maxTickets <= 100,
-            "Max tickets must be less than or equal to 100"
-        );
+        require(_ticketPrice > 0, "Invalid ticket price");
+        require(_maxTickets > 1, "Invalid tickets");
 
         IERC721(_nftAddress).transferFrom(msg.sender, address(this), _tokenId);
 
-        raffleCount++;
+        raffleCount ++;
+
         raffles[raffleCount] = Raffle({
             raffleOwner: msg.sender,
             tokenId: _tokenId,
@@ -87,30 +82,17 @@ contract NftRaffle {
             entropyFee: 0
         });
 
-        emit RaffleCreated(
-            raffleCount,
-            _tokenId,
-            _nftAddress,
-            _ticketPrice,
-            _maxTickets
-        );
+        emit RaffleCreated(raffleCount, _tokenId, _nftAddress, _ticketPrice, _maxTickets);
     }
 
     function purchaseTicket(uint256 _raffleId) external payable {
         Raffle storage raffle = raffles[_raffleId];
-        require(
-            raffle.ticketOwners.length < raffle.maxTickets,
-            "Raffle is sold out"
-        );
-        require(msg.value == raffle.ticketPrice, "Incorrect ticket price");
+        require(raffle.ticketOwners.length < raffle.maxTickets, "Raffle is sold out");
+        require(msg.value == raffle.ticketPrice, "Invalid value");
 
         raffle.ticketOwners.push(msg.sender);
-        emit TicketPurchased(
-            _raffleId,
-            raffle.tokenId,
-            raffle.nftAddress,
-            msg.sender
-        );
+
+        emit TicketPurchased(_raffleId, msg.sender);
     }
 
     function closeRaffle(
@@ -118,20 +100,17 @@ contract NftRaffle {
         bytes32 _userCommitment
     ) external payable {
         Raffle storage raffle = raffles[_raffleId];
-        require(
-            raffle.ticketOwners.length == raffle.maxTickets,
-            "Raffle is not sold out"
-        );
-        require(raffle.sequenceNumber == 0, "Raffle has already been drawn");
+        require(msg.sender == raffle.raffleOwner, "invalid msg.sender");
+        require(raffle.ticketOwners.length == raffle.maxTickets, "raffle is not sold out");
+        require(raffle.sequenceNumber == 0, "Invalid sequence");
 
         uint256 fee = entropy.getFee(entropyProvider);
-        uint64 sequenceNumber = entropy.request{value: fee}(
-            entropyProvider,
-            _userCommitment,
-            true
-        );
+
+        uint64 sequenceNumber = entropy.request{value: fee}(entropyProvider, _userCommitment, true);
+
         raffle.sequenceNumber = sequenceNumber;
         raffle.entropyFee = fee;
+
         emit RaffleClosed(_raffleId, sequenceNumber);
     }
 
@@ -142,35 +121,21 @@ contract NftRaffle {
         bytes32 _providerRandom
     ) public {
         Raffle storage raffle = raffles[_raffleId];
-        require(
-            raffle.sequenceNumber == _sequenceNumber,
-            "Invalid sequence number"
-        );
+        require(raffle.sequenceNumber != 0, "invalid raffle");
 
-        require(raffle.sequenceNumber != 0, "Raffle has not been closed");
-
-        bytes32 randomNumber = entropy.reveal(
-            entropyProvider,
-            _sequenceNumber,
-            _userRandom,
-            _providerRandom
-        );
+        bytes32 randomNumber = entropy.reveal(entropyProvider, raffle.sequenceNumber, _userRandom, _providerRandom);
 
         uint256 winningTicket = uint256(randomNumber) % raffle.maxTickets;
-        address winnerAddress = raffle.ticketOwners[winningTicket];
+        address winningAddress = raffle.ticketOwners[winningTicket];
 
         raffle.winningTicket = winningTicket;
-        IERC721(raffle.nftAddress).transferFrom(
-            address(this),
-            winnerAddress,
-            raffle.tokenId
-        );
 
-        uint256 userEth = raffle.ticketPrice *
-            raffle.ticketOwners.length -
-            raffle.entropyFee;
+        IERC721(raffle.nftAddress).transferFrom(address(this), winningAddress, raffle.tokenId);
+
+        uint256 userEth = raffle.ticketPrice * raffle.maxTickets - raffle.entropyFee;
+
         (bool sent, ) = raffle.raffleOwner.call{value: userEth}("");
-        require(sent, "Failed to send Ether");
-        emit RaffleDrawn(_raffleId, winningTicket, winnerAddress);
+        require(sent, "not sent");
+        emit RaffleDrawn(_raffleId, winningTicket, winningAddress);
     }
 }
